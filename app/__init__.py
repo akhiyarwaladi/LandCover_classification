@@ -13,6 +13,7 @@ import celeryconfig
 
 redis = StrictRedis(host=config.REDIS_HOST)
 redis.delete(config.MESSAGES_KEY)
+redis.delete(config.MESSAGES_KEY_2)
 # celery = Celery(__name__)
 # celery.config_from_object(celeryconfig)
 
@@ -195,6 +196,7 @@ def tail():
     redis.publish(config.CHANNEL_NAME, msg)
 
     redis.delete(config.MESSAGES_KEY)
+    redis.delete(config.MESSAGES_KEY_2)
 
 
 class TailNamespace(BaseNamespace):
