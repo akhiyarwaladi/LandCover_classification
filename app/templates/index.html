@@ -63,7 +63,7 @@
               {% endwith %}
             {% endblock %}
             <div class="progress progress-surprise progress-striped active" style="margin-bottom: 9px;">
-            <div class="bar" style="width: 80%">80%</div>
+            <div class="bar" style="width: 0%">0%</div>
           </div>
       </div>
       <div class="row-fluid" style="height: 450px;overflow: scroll;">
@@ -88,6 +88,9 @@
           socket.emit("subscribe");
           socket.on("tail-message", function(data) {
             $(".log-output").append(data);
+          });
+          socket.on("val-message", function(data) {
+            $(".bar").html(data);
           });
         });
     </script>

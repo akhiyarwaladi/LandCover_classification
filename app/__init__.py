@@ -24,8 +24,11 @@ app.config['SECRET_KEY'] = 'top-secret!'
 app.config['SOCKETIO_CHANNEL'] = 'tail-message'
 app.config['MESSAGES_KEY'] = 'tail'
 app.config['CHANNEL_NAME'] = 'tail-channel'
-app.config['MESSAGES_KEY_2'] = 'tail2'
-app.config['CHANNEL_NAME_2'] = 'tail2-channel'
+
+app.config['SOCKETIO_CHANNEL_2'] = 'val-message'
+app.config['MESSAGES_KEY_2'] = 'val'
+app.config['CHANNEL_NAME_2'] = 'val-channel'
+
 app.config['CELERY_BROKER_URL'] = 'redis://localhost:6379/0'
 app.config['CELERY_RESULT_BACKEND'] = 'redis://localhost:6379/0'
 
@@ -197,14 +200,20 @@ def tail():
 class TailNamespace(BaseNamespace):
     def listener(self):
         # Emit the backlog of messages
-        messages = redis.lrange(config.MESSAGES_KEY, 0, -1)
+        messages = redis.lrange(config.MESSAGES_KEY, 0, -1)        
+        messages2 = redis.lrange(config.MESSAGES_KEY_2, 0, -1)
+
         self.emit(config.SOCKETIO_CHANNEL, ''.join(messages))
+        if redis.llen(config.MESSAGES_KEY_2):
+            self.emit(config.SOCKETIO_CHANNEL_2, ''.join(messages_2))
 
         self.pubsub.subscribe(config.CHANNEL_NAME)
+        self.pubsub.subscribe(config.CHANNEL_NAME_2)
 
         for m in self.pubsub.listen():
             if m['type'] == 'message':
                 self.emit(config.SOCKETIO_CHANNEL, m['data'])
+                self.emit(config.SOCKETIO_CHANNEL_2, m['data'])
 
     def on_subscribe(self):
         self.pubsub = redis.pubsub()
