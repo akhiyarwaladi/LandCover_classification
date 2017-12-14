@@ -24,6 +24,8 @@ app.config['SECRET_KEY'] = 'top-secret!'
 app.config['SOCKETIO_CHANNEL'] = 'tail-message'
 app.config['MESSAGES_KEY'] = 'tail'
 app.config['CHANNEL_NAME'] = 'tail-channel'
+app.config['MESSAGES_KEY_2'] = 'tail2'
+app.config['CHANNEL_NAME_2'] = 'tail2-channel'
 app.config['CELERY_BROKER_URL'] = 'redis://localhost:6379/0'
 app.config['CELERY_RESULT_BACKEND'] = 'redis://localhost:6379/0'
 
@@ -111,10 +113,9 @@ def tail():
         redis.rpush(config.MESSAGES_KEY, msg)
         redis.publish(config.CHANNEL_NAME, msg)
 
-        print (i)    
-        msg = "%s\n" % i
-        redis.rpush(config.MESSAGES_KEY, msg)
-        redis.publish(config.CHANNEL_NAME, msg)
+        msg = i
+        redis.rpush(config.MESSAGES_KEY_2, msg)
+        redis.publish(config.CHANNEL_NAME_2, msg)
         #time.sleep(1)
         kelas = clf.predict(df_arr[i])
         dat = pd.DataFrame()
