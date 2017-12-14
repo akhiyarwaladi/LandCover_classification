@@ -7,10 +7,11 @@ from redis import StrictRedis
 from socketio import socketio_manage
 from socketio.namespace import BaseNamespace
 from celery.task.control import revoke
-
+import urllib2
 from assets import assets
 import config
 import celeryconfig
+import os
 
 redis = StrictRedis(host=config.REDIS_HOST)
 redis.delete(config.MESSAGES_KEY)
@@ -38,16 +39,29 @@ app.config['CELERY_RESULT_BACKEND'] = 'redis://localhost:6379/0'
 celery = Celery(app.name, broker=app.config['CELERY_BROKER_URL'])
 celery.conf.update(app.config)
 
+
+def internet_on():
+    for timeout in [1,5,10,15]:
+        try:
+            response=urllib2.urlopen('http://google.com',timeout=timeout)
+            return True
+        except urllib2.URLError as err: pass
+    return False
+
 @app.route('/', methods=['GET', 'POST'])
 def index():
     if request.method == 'POST':
-        if redis.llen(config.MESSAGES_KEY):
-            flash('Task is already running', 'error')
-        # elif(redis.llen(config.MESSAGES_KEY) == 0):
-        #     flash('Task is finished', 'success')
+        if(internet_on()):
+            if redis.llen(config.MESSAGES_KEY):
+                flash('Task is already running', 'error')
+            # elif(redis.llen(config.MESSAGES_KEY) == 0):
+            #     flash('Task is finished', 'success')
+            else:
+                tail.delay()
+                flash('Task started', 'info')
         else:
-            tail.delay()
-            flash('Task started', 'info')
+             flash('Internet connection is bad. Please pay your internet bill :)','error')
+
     return render_template('index.html')
 
 @app.route('/socket.io/<path:remaining>')
@@ -84,125 +98,131 @@ def tail():
     import ftpClient as ft
 
     stat = ft.downloadFile()
-    dataPath = config.dataPath
-    modelPath = config.modelPath
-    outputPath = config.outputPath
+    arrfile = os.listdir(config.dataPath)
+    print(arrfile)
+    for filename in arrfile:
+        dataPath =  config.dataPath + filename
+        modelPath = config.modelPath
+        outputPath = config.outputPath + filename
+        if(os.path.exists(outputPath)):
+            os.remove(outputPath)
+        rasterarray = arcpy.RasterToNumPyArray(dataPath)
 
-    if(os.path.exists(outputPath)):
-        os.remove(outputPath)
-    rasterarray = arcpy.RasterToNumPyArray(dataPath)
-
-    data = np.array([rasterarray[0].ravel(), rasterarray[1].ravel(), rasterarray[2].ravel()])
-    data = data.transpose()
-
-    import pandas as pd
-    print("Change to dataframe format")
-
-    msg = str(datetime.now()) + '\t' + "Change to dataframe format \n"
-    redis.rpush(config.MESSAGES_KEY, msg)
-    redis.publish(config.CHANNEL_NAME, msg)
-    #time.sleep(1)
-
-    columns = ['band1','band2', 'band3']
-    df = pd.DataFrame(data, columns=columns)
-
-    print("Split data to 20 chunks ")
-    msg = str(datetime.now()) + '\t' + "Split data to 20 chunks \n"
-    redis.rpush(config.MESSAGES_KEY, msg)
-    redis.publish(config.CHANNEL_NAME, msg)
-    #time.sleep(1)
-
-    df_arr = np.array_split(df, 20)
-    from sklearn.externals import joblib
-    clf = joblib.load(modelPath) 
-    kelasAll = []
-    for i in range(len(df_arr)):
-        
-        print ("predicting data chunk-%s\n" % i)
-        msg = str(datetime.now()) + '\t' + "predicting data chunk-%s\n" % i
+        msg = str(datetime.now()) + '\t' + "Processing file "+filename+"\n"
         redis.rpush(config.MESSAGES_KEY, msg)
         redis.publish(config.CHANNEL_NAME, msg)
 
-        msg2 = i
-        redis.rpush(config.MESSAGES_KEY_2, msg2)
-        redis.publish(config.CHANNEL_NAME_2, msg2)
-        #time.sleep(1)
-        kelas = clf.predict(df_arr[i])
-        dat = pd.DataFrame()
-        dat['kel'] = kelas
-        print ("mapping to integer class")
-        msg = str(datetime.now()) + '\t' + "mapping to integer class \n"
-        redis.rpush(config.MESSAGES_KEY, msg)
-        redis.publish(config.CHANNEL_NAME, msg)
-        #time.sleep(1)
-        mymap = {'awan':1, 'air':2, 'tanah':3, 'vegetasi':4}
-        dat['kel'] = dat['kel'].map(mymap)
+        data = np.array([rasterarray[0].ravel(), rasterarray[1].ravel(), rasterarray[2].ravel()])
+        data = data.transpose()
 
-        band1Array = dat['kel'].values
-        print ("extend to list")
-        msg = str(datetime.now()) + '\t' + "extend to list \n"
+        import pandas as pd
+        print("Change to dataframe format")
+
+        msg = str(datetime.now()) + '\t' + "Change to dataframe format \n"
         redis.rpush(config.MESSAGES_KEY, msg)
         redis.publish(config.CHANNEL_NAME, msg)
         #time.sleep(1)
 
-        kelasAll.extend(band1Array.tolist())
+        columns = ['band1','band2', 'band3']
+        df = pd.DataFrame(data, columns=columns)
 
-    del df_arr
-    del clf
-    del kelas
-    del dat
-    del band1Array
-    del data
+        print("Split data to 20 chunks ")
+        msg = str(datetime.now()) + '\t' + "Split data to 20 chunks \n"
+        redis.rpush(config.MESSAGES_KEY, msg)
+        redis.publish(config.CHANNEL_NAME, msg)
+        #time.sleep(1)
 
-    print ("change list to np array")
-    msg = str(datetime.now()) + '\t' + "change list to np array \n"
-    redis.rpush(config.MESSAGES_KEY, msg)
-    redis.publish(config.CHANNEL_NAME, msg)
+        df_arr = np.array_split(df, 20)
+        from sklearn.externals import joblib
+        clf = joblib.load(modelPath) 
+        kelasAll = []
+        for i in range(len(df_arr)):
+            
+            print ("predicting data chunk-%s\n" % i)
+            msg = str(datetime.now()) + '\t' + "predicting data chunk-%s\n" % i
+            redis.rpush(config.MESSAGES_KEY, msg)
+            redis.publish(config.CHANNEL_NAME, msg)
 
-    kelasAllArray = np.array(kelasAll, dtype=np.uint8)
+            msg2 = i
+            redis.rpush(config.MESSAGES_KEY_2, msg2)
+            redis.publish(config.CHANNEL_NAME_2, msg2)
+            #time.sleep(1)
+            kelas = clf.predict(df_arr[i])
+            dat = pd.DataFrame()
+            dat['kel'] = kelas
+            print ("mapping to integer class")
+            msg = str(datetime.now()) + '\t' + "mapping to integer class \n"
+            redis.rpush(config.MESSAGES_KEY, msg)
+            redis.publish(config.CHANNEL_NAME, msg)
+            #time.sleep(1)
+            mymap = {'awan':1, 'air':2, 'tanah':3, 'vegetasi':4}
+            dat['kel'] = dat['kel'].map(mymap)
 
-    print ("reshaping np array")
-    msg = str(datetime.now()) + '\t' + "reshaping np array \n"
-    redis.rpush(config.MESSAGES_KEY, msg)
-    redis.publish(config.CHANNEL_NAME, msg)
+            band1Array = dat['kel'].values
+            print ("extend to list")
+            msg = str(datetime.now()) + '\t' + "extend to list \n"
+            redis.rpush(config.MESSAGES_KEY, msg)
+            redis.publish(config.CHANNEL_NAME, msg)
+            #time.sleep(1)
 
-    band1 = np.reshape(kelasAllArray, (-1, rasterarray[0][0].size))
-    band1 = band1.astype(np.uint8)
+            kelasAll.extend(band1Array.tolist())
 
-    raster = arcpy.Raster(dataPath)
-    inputRaster = dataPath
+        del df_arr
+        del clf
+        del kelas
+        del dat
+        del band1Array
+        del data
 
-    spatialref = arcpy.Describe(inputRaster).spatialReference
-    cellsize1  = raster.meanCellHeight
-    cellsize2  = raster.meanCellWidth
-    extent     = arcpy.Describe(inputRaster).Extent
-    pnt        = arcpy.Point(extent.XMin,extent.YMin)
+        print ("change list to np array")
+        msg = str(datetime.now()) + '\t' + "change list to np array \n"
+        redis.rpush(config.MESSAGES_KEY, msg)
+        redis.publish(config.CHANNEL_NAME, msg)
 
-    del raster
+        kelasAllArray = np.array(kelasAll, dtype=np.uint8)
 
-    # save the raster
-    print ("numpy array to raster ..")
-    msg = str(datetime.now()) + '\t' + "numpy array to raster .. \n"
-    redis.rpush(config.MESSAGES_KEY, msg)
-    redis.publish(config.CHANNEL_NAME, msg)
+        print ("reshaping np array")
+        msg = str(datetime.now()) + '\t' + "reshaping np array \n"
+        redis.rpush(config.MESSAGES_KEY, msg)
+        redis.publish(config.CHANNEL_NAME, msg)
 
-    out_ras = arcpy.NumPyArrayToRaster(band1, pnt, cellsize1, cellsize2)
+        band1 = np.reshape(kelasAllArray, (-1, rasterarray[0][0].size))
+        band1 = band1.astype(np.uint8)
 
-    #arcpy.CheckOutExtension("Spatial")
-    print ("define projection ..")
-    msg = str(datetime.now()) + '\t' + "define projection ..\n"
-    redis.rpush(config.MESSAGES_KEY, msg)
-    redis.publish(config.CHANNEL_NAME, msg)
+        raster = arcpy.Raster(dataPath)
+        inputRaster = dataPath
 
-    arcpy.CopyRaster_management(out_ras, outputPath)
-    arcpy.DefineProjection_management(outputPath, spatialref)
+        spatialref = arcpy.Describe(inputRaster).spatialReference
+        cellsize1  = raster.meanCellHeight
+        cellsize2  = raster.meanCellWidth
+        extent     = arcpy.Describe(inputRaster).Extent
+        pnt        = arcpy.Point(extent.XMin,extent.YMin)
 
-    msg = str(datetime.now()) + '\t' + "Finished ... \n"
-    redis.rpush(config.MESSAGES_KEY, msg)
-    redis.publish(config.CHANNEL_NAME, msg)
+        del raster
 
-    redis.delete(config.MESSAGES_KEY)
-    redis.delete(config.MESSAGES_KEY_2)
+        # save the raster
+        print ("numpy array to raster ..")
+        msg = str(datetime.now()) + '\t' + "numpy array to raster .. \n"
+        redis.rpush(config.MESSAGES_KEY, msg)
+        redis.publish(config.CHANNEL_NAME, msg)
+
+        out_ras = arcpy.NumPyArrayToRaster(band1, pnt, cellsize1, cellsize2)
+
+        #arcpy.CheckOutExtension("Spatial")
+        print ("define projection ..")
+        msg = str(datetime.now()) + '\t' + "define projection ..\n"
+        redis.rpush(config.MESSAGES_KEY, msg)
+        redis.publish(config.CHANNEL_NAME, msg)
+
+        arcpy.CopyRaster_management(out_ras, outputPath)
+        arcpy.DefineProjection_management(outputPath, spatialref)
+
+        msg = str(datetime.now()) + '\t' + "Finished ... \n"
+        redis.rpush(config.MESSAGES_KEY, msg)
+        redis.publish(config.CHANNEL_NAME, msg)
+
+        redis.delete(config.MESSAGES_KEY)
+        redis.delete(config.MESSAGES_KEY_2)
 
 
 class TailNamespace(BaseNamespace):

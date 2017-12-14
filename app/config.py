@@ -16,7 +16,8 @@ SOCKETIO_CHANNEL_2 = 'val-message'
 MESSAGES_KEY_2 = 'val'
 CHANNEL_NAME_2 = 'val-channel'
 
-dataPath = "C:/Apps/data/tes/Combinasi_654_Jabo_Lapan_modified.tif"
+dataPathFile = "C:/Apps/data/tes/Combinasi_654_Jabo_Lapan_modified.tif"
+dataPath = "C:/Apps/data/tes/"
 modelPath = "C:/Apps/data/model/DataTest_decisionTree.pkl"
-outputPath = "C:/Apps/data/hasil/Combinasi_654_Jabo_Lapan_modified_clf.tif"
+outputPath = "C:/Apps/data/hasil/"
 
