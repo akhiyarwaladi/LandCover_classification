@@ -1,6 +1,6 @@
 
 import time
-
+from datetime import datetime
 from celery import Celery
 from flask import Flask, render_template, request, flash
 from redis import StrictRedis
@@ -59,12 +59,16 @@ def tail():
     #     redis.publish(config.CHANNEL_NAME, msg)
     #     time.sleep(1)
     # redis.delete(config.MESSAGES_KEY)
+    msg = str(datetime.now()) + '\t' + "Importing Library ... \n"
+    redis.rpush(config.MESSAGES_KEY, msg)
+    redis.publish(config.CHANNEL_NAME, msg)
+
     import arcpy
     import pandas as pd
     import numpy as np
     dataPath = "C:/Apps/data_banghendrik/Combinasi_654_Jabo_Lapan_modified.tif"
     modelPath = "C:/Apps/data_banghendrik/DataTest_decisionTree.pkl"
-    outputPath = "C:/Prog/banghendrik/Combinasi_654_Jabo_Lapan_modified_clf.tif"
+    outputPath = "C:/Apps/data_banghendrik/Combinasi_654_Jabo_Lapan_modified_clf.tif"
     rasterarray = arcpy.RasterToNumPyArray(dataPath)
 
     data = np.array([rasterarray[0].ravel(), rasterarray[1].ravel(), rasterarray[2].ravel()])
@@ -73,7 +77,7 @@ def tail():
     import pandas as pd
     print("Change to dataframe format")
 
-    msg = "Change to dataframe format \n"
+    msg = str(datetime.now()) + '\t' + "Change to dataframe format \n"
     redis.rpush(config.MESSAGES_KEY, msg)
     redis.publish(config.CHANNEL_NAME, msg)
     #time.sleep(1)
@@ -82,7 +86,7 @@ def tail():
     df = pd.DataFrame(data, columns=columns)
 
     print("Split data to 20 chunks ")
-    msg = "Split data to 20 chunks \n"
+    msg = str(datetime.now()) + '\t' + "Split data to 20 chunks \n"
     redis.rpush(config.MESSAGES_KEY, msg)
     redis.publish(config.CHANNEL_NAME, msg)
     #time.sleep(1)
@@ -94,7 +98,7 @@ def tail():
     for i in range(len(df_arr)):
         
         print ("predicting data chunk-%s\n" % i)
-        msg = "predicting data chunk-%s\n" % i
+        msg = str(datetime.now()) + '\t' + "predicting data chunk-%s\n" % i
         redis.rpush(config.MESSAGES_KEY, msg)
         redis.publish(config.CHANNEL_NAME, msg)
         #time.sleep(1)
@@ -102,7 +106,7 @@ def tail():
         dat = pd.DataFrame()
         dat['kel'] = kelas
         print ("mapping to integer class")
-        msg = "mapping to integer class \n"
+        msg = str(datetime.now()) + '\t' + "mapping to integer class \n"
         redis.rpush(config.MESSAGES_KEY, msg)
         redis.publish(config.CHANNEL_NAME, msg)
         #time.sleep(1)
@@ -111,53 +115,71 @@ def tail():
 
         band1Array = dat['kel'].values
         print ("extend to list")
-        msg = "extend to list \n"
+        msg = str(datetime.now()) + '\t' + "extend to list \n"
         redis.rpush(config.MESSAGES_KEY, msg)
         redis.publish(config.CHANNEL_NAME, msg)
         #time.sleep(1)
 
         kelasAll.extend(band1Array.tolist())
+
+    del df_arr
+    del clf
+    del kelas
+    del dat
+    del band1Array
+    del data
+
+    print ("change list to np array")
+    msg = str(datetime.now()) + '\t' + "change list to np array \n"
+    redis.rpush(config.MESSAGES_KEY, msg)
+    redis.publish(config.CHANNEL_NAME, msg)
+
+    kelasAllArray = np.array(kelasAll, dtype=np.uint8)
+
+    print ("reshaping np array")
+    msg = str(datetime.now()) + '\t' + "reshaping np array \n"
+    redis.rpush(config.MESSAGES_KEY, msg)
+    redis.publish(config.CHANNEL_NAME, msg)
+
+    band1 = np.reshape(kelasAllArray, (-1, rasterarray[0][0].size))
+    band1 = band1.astype(np.uint8)
+
+    raster = arcpy.Raster(dataPath)
+    inputRaster = dataPath
+
+    spatialref = arcpy.Describe(inputRaster).spatialReference
+    cellsize1  = raster.meanCellHeight
+    cellsize2  = raster.meanCellWidth
+    extent     = arcpy.Describe(inputRaster).Extent
+    pnt        = arcpy.Point(extent.XMin,extent.YMin)
+
+    del raster
+
+    # save the raster
+    print ("numpy array to raster ..")
+    msg = str(datetime.now()) + '\t' + "numpy array to raster .. \n"
+    redis.rpush(config.MESSAGES_KEY, msg)
+    redis.publish(config.CHANNEL_NAME, msg)
+
+
+    out_ras = arcpy.NumPyArrayToRaster(band1, pnt, cellsize1, cellsize2)
+
+    #arcpy.CheckOutExtension("Spatial")
+    print ("define projection ..")
+    msg = str(datetime.now()) + '\t' + "define projection ..\n"
+    redis.rpush(config.MESSAGES_KEY, msg)
+    redis.publish(config.CHANNEL_NAME, msg)
+
+    arcpy.CopyRaster_management(out_ras, outputPath)
+    arcpy.DefineProjection_management(outputPath, spatialref)
+
+    msg = str(datetime.now()) + '\t' + "Finished ... \n"
+    redis.rpush(config.MESSAGES_KEY, msg)
+    redis.publish(config.CHANNEL_NAME, msg)
+
     redis.delete(config.MESSAGES_KEY)
-    # del df_arr
-    # del clf
-    # del kelas
-    # del dat
-    # del band1Array
-    # del data
-
-    # print ("change list to np array")
-    # logging.info("change list to np array")
-    # kelasAllArray = np.array(kelasAll, dtype=np.uint8)
-
-    # print ("reshaping np array")
-    # logging.info("reshaping np array")
-    # band1 = np.reshape(kelasAllArray, (-1, rasterarray[0][0].size))
-    # band1 = band1.astype(np.uint8)
-
-    # raster = arcpy.Raster(dataPath)
-    # inputRaster = dataPath
-
-    # spatialref = arcpy.Describe(inputRaster).spatialReference
-    # cellsize1  = raster.meanCellHeight
-    # cellsize2  = raster.meanCellWidth
-    # extent     = arcpy.Describe(inputRaster).Extent
-    # pnt        = arcpy.Point(extent.XMin,extent.YMin)
-
-    # del raster
-
-    # # save the raster
-    # print ("numpy array to raster ..")
-    # logging.info("numpy array to raster ..")
-    # out_ras = arcpy.NumPyArrayToRaster(band1, pnt, cellsize1, cellsize2)
-    # #out_ras.save(outputPath)
-    # #arcpy.CheckOutExtension("Spatial")
-    # print ("define projection ..")
-    # logging.info ("define projection ..")
-    # arcpy.CopyRaster_management(out_ras, outputPath)
-    # arcpy.DefineProjection_management(outputPath, spatialref)
 
 
-    # redis.delete(config.MESSAGES_KEY)
 class TailNamespace(BaseNamespace):
     def listener(self):
         # Emit the backlog of messages
