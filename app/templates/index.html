@@ -44,7 +44,7 @@
           </div>
             <div class="row-fluid">
               <form action="/" method="POST"><button class="btn btn-primary" type="submit">Start Task</button></form>
-              <form action="/" method="POST"><button class="btn btn-danger" type="submit">Stop Task</button></form>
+              <form action="/stop" method="POST"><button class="btn btn-danger" type="submit">Stop Task</button></form>
             </div>
               {% block flash_messages %}
               {% with messages = get_flashed_messages(with_categories=true) %}
@@ -93,6 +93,8 @@
           socket.on("val-message", function(data) {
             $(".bar").html(data+'%');
             $(".bar").css('width', data+'%');
+            if(data==100)
+               $(".alert").html("Task complete");
           });
         });
     </script>

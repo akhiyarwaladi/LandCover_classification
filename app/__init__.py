@@ -6,6 +6,7 @@ from flask import Flask, render_template, request, flash
 from redis import StrictRedis
 from socketio import socketio_manage
 from socketio.namespace import BaseNamespace
+from celery.task.control import revoke
 
 from assets import assets
 import config
@@ -56,6 +57,11 @@ def socketio(remaining):
     })
     return app.response_class()
 
+@app.route('/stop', methods=['GET', 'POST'])
+def stop():
+    if request.method == 'POST':
+        tail.delay()
+    return render_template('index.html')
 
 @celery.task
 def tail():
@@ -78,9 +84,9 @@ def tail():
     import ftpClient as ft
 
     stat = ft.downloadFile()
-    dataPath = "C:/Apps/data/tes/Combinasi_654_Jabo_Lapan_modified.tif"
-    modelPath = "C:/Apps/data/model/DataTest_decisionTree.pkl"
-    outputPath = "C:/Apps/data/hasil/Combinasi_654_Jabo_Lapan_modified_clf.tif"
+    dataPath = config.dataPath
+    modelPath = config.modelPath
+    outputPath = config.outputPath
 
     if(os.path.exists(outputPath)):
         os.remove(outputPath)
