@@ -117,9 +117,9 @@ def tail():
         redis.rpush(config.MESSAGES_KEY, msg)
         redis.publish(config.CHANNEL_NAME, msg)
 
-        msg = i
-        redis.rpush(config.MESSAGES_KEY_2, msg)
-        redis.publish(config.CHANNEL_NAME_2, msg)
+        msg2 = i
+        redis.rpush(config.MESSAGES_KEY_2, msg2)
+        redis.publish(config.CHANNEL_NAME_2, msg2)
         #time.sleep(1)
         kelas = clf.predict(df_arr[i])
         dat = pd.DataFrame()
@@ -204,18 +204,19 @@ class TailNamespace(BaseNamespace):
         # Emit the backlog of messages
         messages = redis.lrange(config.MESSAGES_KEY, 0, -1)        
         messages2 = redis.lrange(config.MESSAGES_KEY_2, 0, -1)
+
         print(messages2)
         self.emit(config.SOCKETIO_CHANNEL, ''.join(messages))
-        if redis.llen(config.MESSAGES_KEY_2):
-            self.emit(config.SOCKETIO_CHANNEL_2, messages2)
+        self.emit(config.SOCKETIO_CHANNEL_2, ''.join(messages2))
 
         self.pubsub.subscribe(config.CHANNEL_NAME)
         self.pubsub.subscribe(config.CHANNEL_NAME_2)
-
+        i=11
         for m in self.pubsub.listen():
             if m['type'] == 'message':
                 self.emit(config.SOCKETIO_CHANNEL, m['data'])
-                self.emit(config.SOCKETIO_CHANNEL_2, m['data'])
+                self.emit(config.SOCKETIO_CHANNEL_2, i)
+                i=i+1
 
     def on_subscribe(self):
         self.pubsub = redis.pubsub()
