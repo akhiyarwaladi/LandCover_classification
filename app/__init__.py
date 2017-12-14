@@ -36,11 +36,12 @@ def index():
     if request.method == 'POST':
         if redis.llen(config.MESSAGES_KEY):
             flash('Task is already running', 'error')
+        # elif(redis.llen(config.MESSAGES_KEY) == 0):
+        #     flash('Task is finished', 'success')
         else:
             tail.delay()
             flash('Task started', 'info')
     return render_template('index.html')
-
 
 @app.route('/socket.io/<path:remaining>')
 def socketio(remaining):
@@ -59,6 +60,7 @@ def tail():
     #     redis.publish(config.CHANNEL_NAME, msg)
     #     time.sleep(1)
     # redis.delete(config.MESSAGES_KEY)
+
     msg = str(datetime.now()) + '\t' + "Importing Library ... \n"
     redis.rpush(config.MESSAGES_KEY, msg)
     redis.publish(config.CHANNEL_NAME, msg)
@@ -66,9 +68,14 @@ def tail():
     import arcpy
     import pandas as pd
     import numpy as np
+    import os.path
+
     dataPath = "C:/Apps/data_banghendrik/Combinasi_654_Jabo_Lapan_modified.tif"
     modelPath = "C:/Apps/data_banghendrik/DataTest_decisionTree.pkl"
     outputPath = "C:/Apps/data_banghendrik/Combinasi_654_Jabo_Lapan_modified_clf.tif"
+
+    if(os.path.exists(outputPath)):
+        os.remove(outputPath)
     rasterarray = arcpy.RasterToNumPyArray(dataPath)
 
     data = np.array([rasterarray[0].ravel(), rasterarray[1].ravel(), rasterarray[2].ravel()])
@@ -160,7 +167,6 @@ def tail():
     msg = str(datetime.now()) + '\t' + "numpy array to raster .. \n"
     redis.rpush(config.MESSAGES_KEY, msg)
     redis.publish(config.CHANNEL_NAME, msg)
-
 
     out_ras = arcpy.NumPyArrayToRaster(band1, pnt, cellsize1, cellsize2)
 
