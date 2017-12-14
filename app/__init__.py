@@ -110,6 +110,11 @@ def tail():
         msg = str(datetime.now()) + '\t' + "predicting data chunk-%s\n" % i
         redis.rpush(config.MESSAGES_KEY, msg)
         redis.publish(config.CHANNEL_NAME, msg)
+
+        print (i)    
+        msg = "%s\n" % i
+        redis.rpush(config.MESSAGES_KEY, msg)
+        redis.publish(config.CHANNEL_NAME, msg)
         #time.sleep(1)
         kelas = clf.predict(df_arr[i])
         dat = pd.DataFrame()

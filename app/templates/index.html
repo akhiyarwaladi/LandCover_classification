@@ -37,23 +37,6 @@
     </div>
 
     <div class="container">
-      {% block flash_messages %}
-        {% with messages = get_flashed_messages(with_categories=true) %}
-          {% if messages %}
-            <div class="row-fluid">
-              <div class="span12">
-                {% for category, message in messages %}
-                  <div class="alert alert-{{ category }}">
-                    <button type="button" class="close" data-dismiss="alert">×</button>
-                    {{ message }}
-                  </div>
-                {% endfor %}
-              </div>
-            </div>
-          {% endif %}
-        {% endwith %}
-      {% endblock %}
-
       <div class="row-fluid">
           <div class="row-fluid">
             <img src="/static/img/lapan.png" height="150" width="150" style="margin-bottom: 20px;">
@@ -63,6 +46,22 @@
               <form action="/" method="POST"><button class="btn btn-primary" type="submit">Start Task</button></form>
               <form action="/" method="POST"><button class="btn btn-danger" type="submit">Stop Task</button></form>
             </div>
+              {% block flash_messages %}
+              {% with messages = get_flashed_messages(with_categories=true) %}
+                {% if messages %}
+                  <div class="row-fluid">
+                    <div class="span12">
+                      {% for category, message in messages %}
+                        <div class="alert alert-{{ category }}">
+                          <button type="button" class="close" data-dismiss="alert">×</button>
+                          {{ message }}
+                        </div>
+                      {% endfor %}
+                    </div>
+                  </div>
+                {% endif %}
+              {% endwith %}
+            {% endblock %}
             <div class="progress progress-surprise progress-striped active" style="margin-bottom: 9px;">
             <div class="bar" style="width: 80%">80%</div>
           </div>
