@@ -202,10 +202,10 @@ class TailNamespace(BaseNamespace):
         # Emit the backlog of messages
         messages = redis.lrange(config.MESSAGES_KEY, 0, -1)        
         messages2 = redis.lrange(config.MESSAGES_KEY_2, 0, -1)
-
+        print(messages2)
         self.emit(config.SOCKETIO_CHANNEL, ''.join(messages))
         if redis.llen(config.MESSAGES_KEY_2):
-            self.emit(config.SOCKETIO_CHANNEL_2, ''.join(messages_2))
+            self.emit(config.SOCKETIO_CHANNEL_2, messages2)
 
         self.pubsub.subscribe(config.CHANNEL_NAME)
         self.pubsub.subscribe(config.CHANNEL_NAME_2)
