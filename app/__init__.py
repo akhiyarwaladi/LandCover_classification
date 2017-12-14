@@ -69,10 +69,12 @@ def tail():
     import pandas as pd
     import numpy as np
     import os.path
+    import ftpClient as ft
 
-    dataPath = "C:/Apps/data_banghendrik/Combinasi_654_Jabo_Lapan_modified.tif"
-    modelPath = "C:/Apps/data_banghendrik/DataTest_decisionTree.pkl"
-    outputPath = "C:/Apps/data_banghendrik/Combinasi_654_Jabo_Lapan_modified_clf.tif"
+    stat = ft.downloadFile()
+    dataPath = "C:/Apps/data/tes/Combinasi_654_Jabo_Lapan_modified.tif"
+    modelPath = "C:/Apps/data/model/DataTest_decisionTree.pkl"
+    outputPath = "C:/Apps/data/hasil/Combinasi_654_Jabo_Lapan_modified_clf.tif"
 
     if(os.path.exists(outputPath)):
         os.remove(outputPath)
