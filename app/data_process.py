@@ -78,6 +78,12 @@ def mask_cloud(path, masktype, confidence, cummulative, out):
     redis.rpush(config.MESSAGES_KEY, msg)
     redis.publish(config.CHANNEL_NAME, msg)
 
+    del outraster
+    del outarray
+    del bitmasker
+    del rasterarray
+    del raster
+
 def reproject_mask_cloud(path, out, project):
     mask = out+'/mask_cloud_'+str(os.path.basename(path))+'.TIF'
     output = out+'/prj_mask_cloud_'+str(os.path.basename(path))+'.TIF'
@@ -158,10 +164,14 @@ def reproject(input_dir, output_dir, projection, meta):
     rasters = ap.ListRasters('*.TIF')
     #ms_bands = [band for band in rasters if (band_nmbr(band) != None)]
     
-    ms_bands = [band for band in rasters if (band_nmbr(band) >= 1 and band_nmbr(band) <=8)]
+    ms_bands = [band for band in rasters if (band_nmbr(band) == 3 or band_nmbr(band) == 5 or band_nmbr(band) == 6)]
     bqa_band = [band for band in rasters if (band_nmbr(band) == None)][0]
     
     try:
+        out_band = ""
+        outBand = ""
+        number = ""
+        outCon = ""
         checkout_Ext("Spatial")
         print "\nReprojecting and Cleaning landsat bands."
         ap.AddMessage("\nReprojecting and Cleaning landsat bands.")
@@ -190,12 +200,24 @@ def reproject(input_dir, output_dir, projection, meta):
             redis.publish(config.CHANNEL_NAME, msg)
             ap.ProjectRaster_management(outCon, out_band, projection)
 
+        del out_band
+        del outBand
+        del number
+        del outCon
+
+        del projection
+        del ms_bands
+        del bqa_band
+
         print "Clearing unused file"
         filelist = [ f for f in os.listdir(output_dir) if f.endswith(".tfw") or f.endswith(".xml") or f.endswith(".ovr") or f.endswith(".cpg") or f.endswith(".dbf") ]
-        for f in filelist:
-        	print "..."
-            #os.remove(os.path.join(output_dir, f))
+        # for f in filelist:
+        # 	print "..."
+        #     #os.remove(os.path.join(output_dir, f))
         print "Finished Clearing unused file"
+
+
+
     except SpatialRefProjError:
         ap.AddError ("Spatial Data must use a projected coordinate system to run")
 
@@ -278,6 +300,13 @@ def calc_toa(input_dir, output_dir, meta):
     ms_bands = [band for band in rasters if (band_nmbr(band) != None)]
 
     try:
+        toa_refl = ""
+        raster_band = ""
+        rad_add = ""
+        rad_mult = ""
+        sun_elev = ""
+        out_band = ""
+        number = ""
         checkout_Ext("Spatial")
 
         print "\nCalculating TOA Reflectance for landsat 8 bands"
@@ -294,7 +323,7 @@ def calc_toa(input_dir, output_dir, meta):
             ap.AddMessage("\nBegining to calculate TOA for " + band)
             number = band_nmbr(band)
             raster_band = ap.sa.Raster(band)
-            out_band = str(meta['L1_METADATA_FILE']['LANDSAT_SCENE_ID']) + 'TOA_B' + str(number) + '.img'
+            out_band = str(meta['L1_METADATA_FILE']['LANDSAT_SCENE_ID']) + '_B' + str(number) + '.TIF'
         
             sun_elev = float(meta['IMAGE_ATTRIBUTES']['SUN_ELEVATION'])
             rad_mult = float(meta['RADIOMETRIC_RESCALING']['RADIANCE_MULT_BAND_' + str(number)])
@@ -308,6 +337,17 @@ def calc_toa(input_dir, output_dir, meta):
             redis.rpush(config.MESSAGES_KEY, msg)
             redis.publish(config.CHANNEL_NAME, msg)
             toa_refl.save(os.path.join(output_dir, out_band))
+
+        del toa_refl
+        del raster_band
+        del rad_add
+        del rad_mult
+        del sun_elev
+        del out_band
+        del number
+
+        del rasters
+        del ms_bands
 
     except SpatialRefProjError:
         ap.AddError ("Spatial Data must use a projected coordinate system to run")
@@ -757,7 +797,7 @@ def sampleClassification(outPath, rgbPath, gsgPath):
 ##  
 ##  Helper FUnctions
 ##  
-def band_nmbr(filename):
+def band_nmbr2(filename):
     ''' Find the landsat band number
 
         @param   filename: Input landsat band to extract band number
@@ -771,7 +811,7 @@ def band_nmbr(filename):
     except:
         pass
     
-def band_nmbr2(filename):
+def band_nmbr(filename):
     ''' Find the landsat band number
 
         @param   filename: Input landsat band to extract band number

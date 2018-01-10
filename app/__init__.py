@@ -1,4 +1,3 @@
-import time
 from datetime import datetime
 from celery import Celery
 from flask import Flask, render_template, request, flash
@@ -6,17 +5,23 @@ from redis import StrictRedis
 from socketio import socketio_manage
 from socketio.namespace import BaseNamespace
 from celery.task.control import revoke
-import urllib2
+from arcpy.sa import *
 from assets import assets
+from sklearn.externals import joblib
+
+import time
+import urllib2
 import config
-import celeryconfig
 import os
 import ftpLahan as ftl
 import maskCloud as mc
 import shutil
-from arcpy.sa import *
 import time
 import data_process as dp
+import arcpy
+import pandas as pd
+import numpy as np
+import os.path
 
 redis = StrictRedis(host=config.REDIS_HOST)
 redis.delete(config.MESSAGES_KEY)
@@ -89,12 +94,6 @@ def tail():
     redis.rpush(config.MESSAGES_KEY, msg)
     redis.publish(config.CHANNEL_NAME, msg)
 
-    import arcpy
-    import pandas as pd
-    import numpy as np
-    import os.path
-    import ftpClient as ft
-
     scene_id = ftl.downloadFile()
 
     dataPath =  config.dataPath + scene_id
@@ -103,6 +102,28 @@ def tail():
     outputPath = config.outputPath
     shpPath = config.shpPath
 
+    ######################### check output directory #########################
+    if(os.path.exists(outputPath + scene_id)):
+        print "dir exists"
+        shutil.rmtree(outputPath + scene_id)
+        time.sleep(3)
+        os.makedirs(outputPath + scene_id)
+
+    else:
+        print "make dir"
+        os.makedirs(outputPath + scene_id)
+
+    ##############################################################################
+
+    ######################### Make mask cloud ############################
+    masktype = 'Cloud'
+    confidence = 'High'
+    cummulative = 'false'   
+    mc.mask_cloud(dataPath, masktype, confidence, cummulative, outputPath + scene_id)
+    #######################################################################
+
+
+    ######################### Change to reflectance ##############################
     text_files = [f for f in os.listdir(dataPath) if f.endswith('.TIF') or f.endswith('.tif')]
     inFC = os.path.join(dataPath, text_files[0])
 
@@ -110,41 +131,24 @@ def tail():
     data_type = "LANDSAT_8"
     os.makedirs(out_reflectance)
     dp.process_landsat(dataPath, SR, out_reflectance, "_Pre", data_type, "")
+    ###############################################################################
 
-    if(os.path.exists(outputPath + scene_id)):
-        shutil.rmtree(outputPath + scene_id)
-
-        time.sleep(3)
-        os.makedirs(outputPath + scene_id)
-
-    else:
-        os.makedirs(outputPath + scene_id)
-    #arcpy.env.workspace = 'in_memory'
-    #arcpy.env.overwriteOutpt = True
-    #rasterarray = arcpy.RasterToNumPyArray(dataPath)
-
+    dataPath = "C:/data/lahan/input/LC81190652017291LGN00/reflectance/processed_Pre/toa"
+    
+  
+    ###################### Begin preprocessing and load data ##########################
     msg = str(datetime.now()) + '\t' + "Processing file "+dataPath+"\n"
     redis.rpush(config.MESSAGES_KEY, msg)
     redis.publish(config.CHANNEL_NAME, msg)
 
-    #cloudmasking
-    masktype = 'Cloud'
-    confidence = 'High'
-    cummulative = 'false'   
-    mc.mask_cloud(dataPath, masktype, confidence, cummulative, outputPath + scene_id)
-
-    rasterarrayband6 = arcpy.RasterToNumPyArray(dataPath + "/" + os.path.basename(dataPath) + "_B6.TIF")
-    rasterarrayband5 = arcpy.RasterToNumPyArray(dataPath + "/" + os.path.basename(dataPath) + "_B5.TIF")
-    rasterarrayband4 = arcpy.RasterToNumPyArray(dataPath + "/" + os.path.basename(dataPath) + "_B4.TIF")
+    rasterarrayband6 = arcpy.RasterToNumPyArray(dataPath + "/" + scene_id + "_B6.TIF")
+    rasterarrayband5 = arcpy.RasterToNumPyArray(dataPath + "/" + scene_id + "_B5.TIF")
+    rasterarrayband3 = arcpy.RasterToNumPyArray(dataPath + "/" + scene_id + "_B3.TIF")
 
     print("Change raster format to numpy array")
-    data = np.array([rasterarrayband6.ravel(), rasterarrayband5.ravel(), rasterarrayband4.ravel()])
+    data = np.array([rasterarrayband6.ravel(), rasterarrayband5.ravel(), rasterarrayband3.ravel()], dtype=np.float16)
     data = data.transpose()
 
-    #data = np.array([rasterarray[0].ravel(), rasterarray[1].ravel(), rasterarray[2].ravel()])
-    #data = data.transpose()
-
-    import pandas as pd
     print("Change to dataframe format")
 
     msg = str(datetime.now()) + '\t' + "Change to dataframe format \n"
@@ -152,8 +156,9 @@ def tail():
     redis.publish(config.CHANNEL_NAME, msg)
     #time.sleep(1)
 
-    columns = ['band1','band2', 'band3']
+    columns = ['band6', 'band5', 'band3']
     df = pd.DataFrame(data, columns=columns)
+    del data
 
     print("Split data to 20 chunks ")
     msg = str(datetime.now()) + '\t' + "Split data to 20 chunks \n"
@@ -161,10 +166,10 @@ def tail():
     redis.publish(config.CHANNEL_NAME, msg)
     #time.sleep(1)
 
-    df_arr = np.array_split(df, 20)
-    from sklearn.externals import joblib
+    df_arr = np.array_split(df, 25)
     clf = joblib.load(modelPath) 
     kelasAll = []
+
     for i in range(len(df_arr)):
         
         print ("predicting data chunk-%s\n" % i)
@@ -184,7 +189,7 @@ def tail():
         redis.rpush(config.MESSAGES_KEY, msg)
         redis.publish(config.CHANNEL_NAME, msg)
         #time.sleep(1)
-        mymap = {'awan':1, 'air':2, 'tanah':3, 'vegetasi':4}
+        mymap = {'cloudshodow':1, 'air':2, 'tanah':3, 'vegetasi':4}
         dat['kel'] = dat['kel'].map(mymap)
 
         band1Array = dat['kel'].values
@@ -281,7 +286,14 @@ def tail():
     redis.delete(config.MESSAGES_KEY)
     redis.delete(config.MESSAGES_KEY_2)
 
-       
+
+def splitDataFrameIntoSmaller(df, chunkSize = 10000): 
+    listOfDf = list()
+    numberChunks = len(df) // chunkSize + 1
+    for i in range(numberChunks):
+        listOfDf.append(df[i*chunkSize:(i+1)*chunkSize])
+    return listOfDf
+
 class TailNamespace(BaseNamespace):
     def listener(self):
         # Emit the backlog of messages
