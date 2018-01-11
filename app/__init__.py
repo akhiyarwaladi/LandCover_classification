@@ -146,7 +146,7 @@ def tail():
     rasterarrayband3 = arcpy.RasterToNumPyArray(dataPath + "/" + scene_id + "_B3.TIF")
 
     print("Change raster format to numpy array")
-    data = np.array([rasterarrayband6.ravel(), rasterarrayband5.ravel(), rasterarrayband3.ravel()], dtype=np.float16)
+    data = np.array([rasterarrayband6.ravel(), rasterarrayband5.ravel(), rasterarrayband3.ravel()], dtype=np.int16)
     data = data.transpose()
 
     print("Change to dataframe format")
@@ -158,6 +158,8 @@ def tail():
 
     columns = ['band6', 'band5', 'band3']
     df = pd.DataFrame(data, columns=columns)
+ 
+    print df.shape
     del data
 
     print("Split data to 20 chunks ")
@@ -166,12 +168,19 @@ def tail():
     redis.publish(config.CHANNEL_NAME, msg)
     #time.sleep(1)
 
-    df_arr = np.array_split(df, 25)
+    #df_arr = np.array_split(df, 50)
     clf = joblib.load(modelPath) 
     kelasAll = []
+    kelasAllZeros = np.zeros(df.shape[0], dtype = np.uint8)
 
-    for i in range(len(df_arr)):
-        
+    rangeChunk = 0
+    for i in range(20):
+        df1 = df[int(rangeChunk) : int(rangeChunk + np.ceil(df.shape[0]/20))]
+
+        print(np.any(np.isnan(df1)))
+        print(np.all(np.isfinite(df1)))
+        print df1.dtypes
+
         print ("predicting data chunk-%s\n" % i)
         msg = str(datetime.now()) + '\t' + "predicting data chunk-%s\n" % i
         redis.rpush(config.MESSAGES_KEY, msg)
@@ -181,7 +190,9 @@ def tail():
         redis.rpush(config.MESSAGES_KEY_2, msg2)
         redis.publish(config.CHANNEL_NAME_2, msg2)
         #time.sleep(1)
-        kelas = clf.predict(df_arr[i])
+
+        kelas = clf.predict(df1.as_matrix().astype(np.float))
+
         dat = pd.DataFrame()
         dat['kel'] = kelas
         print ("mapping to integer class")
@@ -193,27 +204,62 @@ def tail():
         dat['kel'] = dat['kel'].map(mymap)
 
         band1Array = dat['kel'].values
+        band1Array = np.array(band1Array, dtype=np.uint8)
         print ("extend to list")
         msg = str(datetime.now()) + '\t' + "extend to list \n"
         redis.rpush(config.MESSAGES_KEY, msg)
         redis.publish(config.CHANNEL_NAME, msg)
         #time.sleep(1)
 
-        kelasAll.extend(band1Array.tolist())
+        #kelasAll.extend(band1Array.tolist())
+        kelasAllZeros[int(rangeChunk) : int(rangeChunk + np.ceil(df.shape[0]/20))] = band1Array
+        rangeChunk = (int(rangeChunk) + int(np.ceil(df.shape[0]/20)))
+    # for i in range(len(df_arr)):
+        
+    #     print ("predicting data chunk-%s\n" % i)
+    #     msg = str(datetime.now()) + '\t' + "predicting data chunk-%s\n" % i
+    #     redis.rpush(config.MESSAGES_KEY, msg)
+    #     redis.publish(config.CHANNEL_NAME, msg)
 
-    del df_arr
+    #     msg2 = i
+    #     redis.rpush(config.MESSAGES_KEY_2, msg2)
+    #     redis.publish(config.CHANNEL_NAME_2, msg2)
+    #     #time.sleep(1)
+    #     kelas = clf.predict(df_arr[i])
+    #     dat = pd.DataFrame()
+    #     dat['kel'] = kelas
+    #     print ("mapping to integer class")
+    #     msg = str(datetime.now()) + '\t' + "mapping to integer class \n"
+    #     redis.rpush(config.MESSAGES_KEY, msg)
+    #     redis.publish(config.CHANNEL_NAME, msg)
+    #     #time.sleep(1)
+    #     mymap = {'cloudshodow':1, 'air':2, 'tanah':3, 'vegetasi':4}
+    #     dat['kel'] = dat['kel'].map(mymap)
+
+    #     band1Array = dat['kel'].values
+    #     print ("extend to list")
+    #     msg = str(datetime.now()) + '\t' + "extend to list \n"
+    #     redis.rpush(config.MESSAGES_KEY, msg)
+    #     redis.publish(config.CHANNEL_NAME, msg)
+    #     #time.sleep(1)
+
+    #     kelasAll.extend(band1Array.tolist())
+
+    del df
     del clf
     del kelas
     del dat
     del band1Array
-    del data
 
+    print len(kelasAll)
     print ("change list to np array")
     msg = str(datetime.now()) + '\t' + "change list to np array \n"
     redis.rpush(config.MESSAGES_KEY, msg)
     redis.publish(config.CHANNEL_NAME, msg)
 
-    kelasAllArray = np.array(kelasAll, dtype=np.uint8)
+    #kelasAllArray = np.array(kelasAll, dtype=np.uint8)
+    kelasAllArray = kelasAllZeros
+    print(kelasAllArray.shape)
 
     print ("reshaping np array")
     msg = str(datetime.now()) + '\t' + "reshaping np array \n"

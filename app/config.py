@@ -19,6 +19,6 @@ CHANNEL_NAME_2 = 'val-channel'
 dataPathFile = "C:/Apps/data/t..s/Combinasi_654_Jabo_Lapan_modified.tif"
 dataPath = "C:/data/lahan/input/"
 shpPath = "C:/data/lahan/shp"
-modelPath = "C:/data/lahan/model/modelReflectance.pkl"
+modelPath = "C:/data/lahan/model/reflectance_int16_py27.pkl"
 outputPath = "C:/data/lahan/hasil/"
 
